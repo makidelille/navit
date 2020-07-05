@@ -13,7 +13,7 @@ pushd $BUILD_PATH
     echo "Building..."
 cmake ${cmake_opts} ../
 make -j $(nproc --all)
-make package
+make install
 
 if [[ "${CIRCLE_PROJECT_USERNAME}" == "navit-gps" && "${CIRCLE_BRANCH}" == "trunk" ]]; then
 	# If we are building the official trunk code, push an update to coverity

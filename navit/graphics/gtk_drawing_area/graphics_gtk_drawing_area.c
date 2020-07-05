@@ -570,7 +570,7 @@ static void draw_mode(struct graphics_priv *gr, enum draw_mode_num mode) {
     if (mode == draw_mode_end) {
         // Just invalidate the whole window. We could only the invalidate the area of
         // graphics_priv, but that is probably not significantly faster.
-        gdk_window_invalidate_rect(gr->widget->window, NULL, TRUE);
+        gdk_window_invalidate_rect(gtk_widget_get_parent_window(gr->widget), NULL, TRUE);
     }
 }
 
@@ -581,10 +581,10 @@ static gint configure(GtkWidget * widget, GdkEventConfigure * event, gpointer us
     if (! gra->visible)
         return TRUE;
 #ifndef _WIN32
-    dbg(lvl_debug,"window=%lu", GDK_WINDOW_XID(widget->window));
+    dbg(lvl_debug,"window=%lu", GDK_WINDOW_XID(gtk_widget_get_parent_window(widget)));
 #endif
-    gra->width=widget->allocation.width;
-    gra->height=widget->allocation.height;
+    gra->width=gtk_widget_get_allocated_width(widget);
+    gra->height=gtk_widget_get_allocated_height(widget);
     cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, gra->width, gra->height);
     if (gra->cairo)
         cairo_destroy(gra->cairo);
@@ -604,7 +604,7 @@ static gint expose(GtkWidget * widget, GdkEventExpose * event, gpointer user_dat
     if (! gra->cairo)
         configure(widget, NULL, user_data);
 
-    cairo_t *cairo=gdk_cairo_create(widget->window);
+    cairo_t *cairo=gdk_cairo_create(gtk_widget_get_parent_window(widget));
     if (gra->p.x || gra->p.y) {
         set_drawing_color(cairo, background_gc->c);
         cairo_paint(cairo);
@@ -735,62 +735,62 @@ static gint keypress(GtkWidget *widget, GdkEventKey *event, gpointer user_data) 
     key[len]='\0';
 
     switch (event->keyval) {
-    case GDK_Up:
+    case GDK_KEY_Up:
         key[0]=NAVIT_KEY_UP;
         key[1]='\0';
         break;
-    case GDK_Down:
+    case GDK_KEY_Down:
         key[0]=NAVIT_KEY_DOWN;
         key[1]='\0';
         break;
-    case GDK_Left:
+    case GDK_KEY_Left:
         key[0]=NAVIT_KEY_LEFT;
         key[1]='\0';
         break;
-    case GDK_Right:
+    case GDK_KEY_Right:
         key[0]=NAVIT_KEY_RIGHT;
         key[1]='\0';
         break;
-    case GDK_BackSpace:
+    case GDK_KEY_BackSpace:
         key[0]=NAVIT_KEY_BACKSPACE;
         key[1]='\0';
         break;
-    case GDK_Tab:
+    case GDK_KEY_Tab:
         key[0]='\t';
         key[1]='\0';
         break;
-    case GDK_Delete:
+    case GDK_KEY_Delete:
         key[0]=NAVIT_KEY_DELETE;
         key[1]='\0';
         break;
-    case GDK_Escape:
+    case GDK_KEY_Escape:
         key[0]=NAVIT_KEY_BACK;
         key[1]='\0';
         break;
-    case GDK_Return:
-    case GDK_KP_Enter:
+    case GDK_KEY_Return:
+    case GDK_KEY_KP_Enter:
         key[0]=NAVIT_KEY_RETURN;
         key[1]='\0';
         break;
-    case GDK_Book:
+    case GDK_KEY_Book:
 #ifdef USE_HILDON
-    case GDK_F7:
+    case GDK_KEY_F7:
 #endif
         key[0]=NAVIT_KEY_ZOOM_IN;
         key[1]='\0';
         break;
-    case GDK_Calendar:
+    case GDK_KEY_Calendar:
 #ifdef USE_HILDON
-    case GDK_F8:
+    case GDK_KEY_F8:
 #endif
         key[0]=NAVIT_KEY_ZOOM_OUT;
         key[1]='\0';
         break;
-    case GDK_Page_Up:
+    case GDK_KEY_Page_Up:
         key[0]=NAVIT_KEY_PAGE_UP;
         key[1]='\0';
         break;
-    case GDK_Page_Down:
+    case GDK_KEY_Page_Down:
         key[0]=NAVIT_KEY_PAGE_DOWN;
         key[1]='\0';
         break;
@@ -811,7 +811,7 @@ static void overlay_disable(struct graphics_priv *gr, int disabled) {
         if (gr->parent) {
             GdkRectangle r;
             overlay_rect(gr->parent, gr, &r);
-            gdk_window_invalidate_rect(gr->parent->widget->window, &r, TRUE);
+            gdk_window_invalidate_rect(gtk_widget_get_parent_window(gr->parent->widget), &r, TRUE);
         }
     }
 }
@@ -872,7 +872,7 @@ static void get_data_window(struct graphics_priv *this, unsigned int xid) {
     else
         this->win = gtk_plug_new(xid);
     if (!gtk_widget_get_parent(this->widget))
-        gtk_widget_ref(this->widget);
+        g_object_ref(this->widget);
     gtk_window_set_default_size(GTK_WINDOW(this->win), this->win_w, this->win_h);
     dbg(lvl_debug,"h= %i, w= %i",this->win_h, this->win_w);
     gtk_window_set_title(GTK_WINDOW(this->win), this->window_title);
@@ -883,7 +883,8 @@ static void get_data_window(struct graphics_priv *this, unsigned int xid) {
     else
         gtk_container_add(GTK_CONTAINER(this->win), this->widget);
     gtk_widget_show_all(this->win);
-    GTK_WIDGET_SET_FLAGS (this->widget, GTK_CAN_FOCUS);
+    // GTK_WIDGET_SET_FLAGS (this->widget, GTK_CAN_FOCUS);
+    gtk_widget_set_can_focus(this->widget, TRUE);
     gtk_widget_set_sensitive(this->widget, TRUE);
     gtk_widget_grab_focus(this->widget);
     g_signal_connect(G_OBJECT(this->widget), "key-press-event", G_CALLBACK(keypress), this);
@@ -972,7 +973,7 @@ static void *get_data(struct graphics_priv *this, char const *type) {
         return this->widget;
 #ifndef _WIN32
     if (!strcmp(type,"xwindow_id"))
-        return (void *)GDK_WINDOW_XID(this->win ? this->win->window : this->widget->window);
+        return (void *)GDK_WINDOW_XID(this->win ? gtk_widget_get_parent_window(this->win) : gtk_widget_get_parent_window(this->widget));
 #endif
     if (!strcmp(type,"window")) {
         char *cp = getenv("NAVIT_XID");
@@ -1093,7 +1094,7 @@ static struct graphics_priv *graphics_gtk_drawing_area_new(struct navit *nav, st
         this->window_title=g_strdup("Navit");
     this->cbl=cbl;
     gtk_widget_set_events(draw, GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK|GDK_POINTER_MOTION_MASK|GDK_KEY_PRESS_MASK);
-    g_signal_connect(G_OBJECT(draw), "expose_event", G_CALLBACK(expose), this);
+    g_signal_connect(G_OBJECT(draw), "draw", G_CALLBACK(expose), this);
     g_signal_connect(G_OBJECT(draw), "configure_event", G_CALLBACK(configure), this);
     g_signal_connect(G_OBJECT(draw), "button_press_event", G_CALLBACK(button_press), this);
     g_signal_connect(G_OBJECT(draw), "button_release_event", G_CALLBACK(button_release), this);
@@ -1113,7 +1114,7 @@ static struct graphics_priv *graphics_gtk_drawing_area_new(struct navit *nav, st
 
 void plugin_init(void) {
     gtk_init(&gtk_argc, &gtk_argv);
-    gtk_set_locale();
+    // setLocale();
 #ifdef HAVE_API_WIN32
     setlocale(LC_NUMERIC, "C"); /* WIN32 gtk resets LC_NUMERIC */
 #endif
